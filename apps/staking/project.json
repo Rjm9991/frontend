@@ -16,7 +16,7 @@
         "main": "apps/staking/src/main.ts",
         "polyfills": "apps/staking/src/polyfills.ts",
         "tsConfig": "apps/staking/tsconfig.app.json",
-        "assets": ["apps/staking/src/assets"],
+        "assets": ["apps/staking/src/assets", "apps/staking/src/manifest.json"],
         "styles": [],
         "scripts": [],
         "webpackConfig": "apps/staking/webpack.config.js",
