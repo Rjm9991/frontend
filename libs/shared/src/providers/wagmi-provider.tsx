@@ -84,7 +84,12 @@ export function WagmiProvider({
       new SafeConnector({
         chains,
         options: {
-          allowedDomains: [/gnosis-safe.io$/, /app.safe.global$/],
+          allowedDomains: [
+            /gnosis-safe.io$/,
+            /app.safe.global$/,
+            /safe.haqq.network$/,
+            /safe.testedge2.haqq.network$/,
+          ],
           debug: true,
         },
       }),
