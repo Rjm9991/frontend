@@ -2,6 +2,7 @@ import { PropsWithChildren, useMemo, createContext, useContext } from 'react';
 import { Connector, WagmiConfig, configureChains, createConfig } from 'wagmi';
 import { InjectedConnector } from '@wagmi/connectors/injected';
 import { WalletConnectConnector } from '@wagmi/connectors/walletConnect';
+import { SafeConnector } from '@wagmi/connectors/safe';
 import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
 import { publicProvider } from 'wagmi/providers/public';
 import { haqqMainnet, haqqTestedge2, Chain } from '@wagmi/chains';
@@ -78,6 +79,13 @@ export function WagmiProvider({
         chains,
         options: {
           shimDisconnect: true,
+        },
+      }),
+      new SafeConnector({
+        chains,
+        options: {
+          allowedDomains: [/gnosis-safe.io$/, /app.safe.global$/],
+          debug: true,
         },
       }),
     ];
