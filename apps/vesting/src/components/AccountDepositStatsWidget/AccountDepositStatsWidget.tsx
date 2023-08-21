@@ -1,14 +1,10 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
-import { useState, useEffect } from 'react';
-import { useContractRead, usePublicClient } from 'wagmi';
-import {
-  DepositHooked,
-  HaqqVestingContract,
-} from '../DepositStatsWidget/DepositStatsWidget';
+import { useState, useEffect, useMemo } from 'react';
+import { useContractRead } from 'wagmi';
+import { DepositHooked } from '../DepositStatsWidget/DepositStatsWidget';
 import { Card } from '../Card/Card';
 import { Heading } from '../Typography/Typography';
 import { DepositNavigation } from '../DepositNavigation/DepositNavigation';
+import HaqqVestingContract from '../../../HaqqVesting.json';
 
 export function AccountDepositStatsWidget({
   contractAddress,
@@ -17,22 +13,30 @@ export function AccountDepositStatsWidget({
   contractAddress: `0x${string}`;
   address: `0x${string}`;
 }) {
-  const publicClient = usePublicClient();
   const [currentDeposit, setCurrentDeposit] = useState<number>(1);
-  const { data: depositsCount } = useContractRead<bigint>({
+  const { data: depositsCount } = useContractRead<
+    typeof HaqqVestingContract.abi,
+    'depositsCounter'
+  >({
     address: contractAddress,
     abi: HaqqVestingContract.abi,
-    publicClient,
     functionName: 'depositsCounter',
     args: [address],
     watch: true,
   });
+  const depoCount = useMemo(() => {
+    if (!depositsCount) {
+      return 0;
+    }
+
+    return Number.parseInt((depositsCount as bigint).toString());
+  }, [depositsCount]);
 
   useEffect(() => {
-    if (depositsCount && depositsCount > 0) {
+    if (depoCount > 0) {
       setCurrentDeposit(1);
     }
-  }, [depositsCount]);
+  }, [depoCount]);
 
   return (
     <Card className="mx-auto w-full max-w-lg overflow-hidden">
@@ -42,9 +46,9 @@ export function AccountDepositStatsWidget({
             Deposit
           </Heading>
 
-          {depositsCount > 0 && (
+          {depoCount > 0 && (
             <DepositNavigation
-              total={(depositsCount as bigint).toString()}
+              total={depoCount}
               current={currentDeposit}
               onChange={setCurrentDeposit}
             />
@@ -52,15 +56,15 @@ export function AccountDepositStatsWidget({
         </div>
 
         <div className="flex flex-col space-y-6">
-          {depositsCount === 0 && (
+          {depoCount === 0 && (
             <div className="px-6 py-12 text-center">
               <Heading level={3}>You have no deposits</Heading>
             </div>
           )}
 
-          {depositsCount > 0 && (
+          {depoCount > 0 && (
             <DepositHooked
-              depositsCount={depositsCount}
+              depositsCount={depoCount}
               address={address}
               contractAddress={contractAddress}
               currentDeposit={currentDeposit}

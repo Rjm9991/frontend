@@ -1,8 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import { useMemo } from 'react';
-import { useContractRead, usePublicClient } from 'wagmi';
-import { HaqqVestingContract } from '../components/DepositStatsWidget/DepositStatsWidget';
+import { useContractRead } from 'wagmi';
+import HaqqVestingContract from '../../HaqqVesting.json';
+import { Abi } from 'viem';
 
 export interface Deposit {
   locked: bigint;
@@ -11,7 +10,7 @@ export interface Deposit {
   deposited: bigint;
   withdrawn: bigint;
   createdAt: string;
-  unlockPeriod: number;
+  unlockPeriod: bigint;
 }
 
 export function useDepositContract({
@@ -20,35 +19,31 @@ export function useDepositContract({
   depositId,
   contractAddress,
 }: {
-  depositsCount: undefined | bigint;
+  depositsCount: undefined | number;
   address: `0x${string}`;
   contractAddress: `0x${string}`;
   depositId: bigint;
 }): Deposit | undefined {
-  const publicClient = usePublicClient();
   const { data: depositContract, isLoading: isLoadingDepositContract } =
-    useContractRead({
+    useContractRead<Abi, 'deposits', [bigint, bigint, bigint]>({
       address: contractAddress,
-      abi: HaqqVestingContract.abi,
-      publicClient,
+      abi: HaqqVestingContract.abi as Abi,
       functionName: 'deposits',
       args: [address, depositId],
       watch: true,
     });
   const { data: amountToWithdrawNow, isLoading: isLoadingAmountToWithdrawNow } =
-    useContractRead({
+    useContractRead<Abi, 'amountToWithdrawNow', bigint>({
       address: contractAddress,
-      abi: HaqqVestingContract.abi,
-      publicClient,
+      abi: HaqqVestingContract.abi as Abi,
       functionName: 'amountToWithdrawNow',
       args: [address, depositId],
       watch: true,
     });
   const { data: timeBetweenPayments, isLoading: isLoadingTimeBetweenPayments } =
-    useContractRead({
+    useContractRead<Abi, 'amountToWithdrawNow', bigint>({
       address: contractAddress,
-      abi: HaqqVestingContract.abi,
-      publicClient,
+      abi: HaqqVestingContract.abi as Abi,
       functionName: 'TIME_BETWEEN_PAYMENTS',
       watch: true,
     });

@@ -1,12 +1,9 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useAccount,
   useContractRead,
   useContractWrite,
-  usePublicClient,
-  useWalletClient,
+  usePrepareContractWrite,
 } from 'wagmi';
 import { Card } from '../Card/Card';
 import { Heading, Text } from '../Typography/Typography';
@@ -22,13 +19,12 @@ import { Input } from '../Input/Input';
 import { AlertWithDetails } from '../modals/AlertWithDetails/AlertWithDetails';
 import { formatDate } from '../../utils/format-date';
 import { formatEther, isAddress } from 'viem/utils';
-import { useDepositContract } from '../../hooks/useDepositContract';
-
-export { HaqqVestingContract };
+import { Deposit, useDepositContract } from '../../hooks/useDepositContract';
+import { Abi } from 'viem';
 
 interface TransferAndWithdrawArgs {
   deposit: Deposit;
-  contractAddress: string;
+  contractAddress: `0x${string}`;
   symbol: string;
 }
 
@@ -71,19 +67,24 @@ export function DepositInfoStatsRow({
 export function DepositStatsWidget({
   contractAddress,
 }: {
-  contractAddress: string;
+  contractAddress: `0x${string}`;
 }) {
   const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
   const [currentDeposit, setCurrentDeposit] = useState<number>(1);
-  const { data: depositsCount } = useContractRead<bigint>({
+  const { data: deposits } = useContractRead({
     address: contractAddress,
     abi: HaqqVestingContract.abi,
-    publicClient,
     functionName: 'depositsCounter',
     args: [address],
     watch: true,
   });
+  const depositsCount = useMemo(() => {
+    if (!deposits) {
+      return 0;
+    }
+
+    return Number.parseInt((deposits as bigint).toString());
+  }, [deposits]);
 
   useEffect(() => {
     if (depositsCount > 0) {
@@ -101,7 +102,7 @@ export function DepositStatsWidget({
 
           {isConnected && depositsCount > 0 && (
             <DepositNavigation
-              total={(depositsCount as bigint).toString()}
+              total={depositsCount}
               current={currentDeposit}
               onChange={setCurrentDeposit}
             />
@@ -115,7 +116,7 @@ export function DepositStatsWidget({
             </div>
           )}
 
-          {isConnected && depositsCount > 0 && (
+          {isConnected && address && depositsCount > 0 && (
             <DepositHooked
               depositsCount={depositsCount}
               address={address}
@@ -135,10 +136,10 @@ export function DepositHooked({
   contractAddress,
   currentDeposit,
 }: {
-  depositsCount: bigint | undefined;
+  depositsCount: number | undefined;
   address: `0x${string}`;
   contractAddress: `0x${string}`;
-  currentDeposit: bigint;
+  currentDeposit: number;
 }) {
   // console.log('DepositInfo', {
   //   depositsCount,
@@ -150,7 +151,7 @@ export function DepositHooked({
     depositsCount,
     address,
     contractAddress,
-    depositId: currentDeposit,
+    depositId: BigInt(currentDeposit),
   });
 
   if (!deposit) {
@@ -163,11 +164,7 @@ export function DepositHooked({
 
   return (
     <Fragment>
-      <DepositInfo
-        deposit={deposit}
-        contractAddress={contractAddress}
-        symbol="ISLM"
-      />
+      <DepositInfo deposit={deposit} symbol="ISLM" />
 
       <div className="flex flex-col space-y-4 px-6 pb-6">
         <Withdraw
@@ -252,15 +249,15 @@ function Withdraw({
   contractAddress,
 }: TransferAndWithdrawArgs) {
   const { address } = useAccount();
-  const { data: walletClient } = useWalletClient();
-  const { writeAsync: contractWithdraw } = useContractWrite({
+  // const { data: walletClient } = useWalletClient();
+  const { writeAsync: contractWithdraw } = useContractWrite<Abi, 'withdraw'>({
     address: contractAddress,
-    contractInterface: HaqqVestingContract.abi,
-    walletClient,
+    abi: HaqqVestingContract.abi as Abi,
+    // walletClient,
     functionName: 'withdraw',
     args: [address],
   });
-  const [withdrawTx, setWithdrawTx] = useState(null);
+  const [withdrawTx, setWithdrawTx] = useState<string | null>(null);
   const [isPending, setPending] = useState(false);
   const [isComplete, setComplete] = useState(false);
   const [error, setError] = useState<string>();
@@ -277,7 +274,7 @@ function Withdraw({
       const withdraw = await contractWithdraw();
 
       console.log({ withdraw });
-      setWithdrawTx(withdraw.hash);
+      setWithdrawTx(withdraw?.hash);
       setComplete(true);
     } catch (error: any) {
       console.error(error);
@@ -331,7 +328,7 @@ function Withdraw({
 
 function Transfer({ contractAddress, symbol }: TransferAndWithdrawArgs) {
   const { address } = useAccount();
-  const { data: walletClient } = useWalletClient();
+
   const [transferTx, setTransferTx] = useState<string>();
   const [isPending, setPending] = useState(false);
   const [isComplete, setComplete] = useState(false);
@@ -341,23 +338,23 @@ function Transfer({ contractAddress, symbol }: TransferAndWithdrawArgs) {
   const [isWarningModalOpen, setWarningModalOpen] = useState<boolean>(false);
   const [isWarned, setWarned] = useState<boolean>(false);
   const [isConfirmModalOpen, setConfirmModalOpen] = useState<boolean>(false);
-  const { writeAsync: contractTransfer } = useContractWrite({
+  const { config } = usePrepareContractWrite({
     address: contractAddress,
-    contractInterface: HaqqVestingContract.abi,
-    walletClient,
+    abi: HaqqVestingContract.abi,
     functionName: 'transferDepositRights',
     args: [newBeneficiaryAddress],
   });
+  const { writeAsync: contractTransfer } = useContractWrite(config);
 
   const handleTransfer = useCallback(async () => {
     setPending(true);
     setConfirmModalOpen(false);
 
     try {
-      const transfer = await contractTransfer();
+      const transfer = await contractTransfer?.();
 
       console.log({ transfer });
-      setTransferTx(transfer.hash);
+      setTransferTx(transfer?.hash);
       setComplete(true);
     } catch (error: any) {
       console.error(error);
@@ -486,6 +483,7 @@ function Transfer({ contractAddress, symbol }: TransferAndWithdrawArgs) {
           setError(undefined);
         }}
         title="Transfer failure"
+        className="max-w-lg"
       >
         {error}
       </Alert>

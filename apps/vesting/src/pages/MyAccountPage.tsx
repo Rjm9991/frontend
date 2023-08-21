@@ -40,7 +40,9 @@ export function AccountPage() {
 
       {environment.contractAddress && ethAddress && (
         <Fragment>
-          <DepositStatsWidget contractAddress={environment.contractAddress} />
+          <DepositStatsWidget
+            contractAddress={environment.contractAddress as `0x${string}`}
+          />
           <DepositWithdrawalList
             contractAddress={environment.contractAddress}
             address={ethAddress}
