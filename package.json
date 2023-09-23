@@ -43,7 +43,7 @@
     "@metamask/jazzicon": "2.0.0",
     "@metamask/onboarding": "1.0.1",
     "@next/mdx": "13.4.19",
-    "@sendgrid/client": "7.7.0",
+    "@safe-global/safe-apps-sdk": "8.0.0",
     "@sentry/react": "7.69.0",
     "@sentry/tracing": "7.69.0",
     "@storyblok/js": "2.3.0",

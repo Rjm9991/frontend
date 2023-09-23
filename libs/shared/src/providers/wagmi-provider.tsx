@@ -115,7 +115,7 @@ export function WagmiProvider({
       publicClient,
       webSocketPublicClient,
       connectors,
-      autoConnect: true,
+      autoConnect: false,
     });
   }, [connectors, publicClient, webSocketPublicClient]);
 

@@ -465,6 +465,7 @@ function createCosmosService(
         params: [message, address],
       });
 
+      console.log({ signature });
       if (signature) {
         const uncompressedPk = recoverPublicKey(
           hashMessage(message),

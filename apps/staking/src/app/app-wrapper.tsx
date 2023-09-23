@@ -29,6 +29,24 @@ import { useMediaQuery } from 'react-responsive';
 import { haqqTestedge2 } from '@wagmi/chains';
 import { useNavigate } from 'react-router-dom';
 
+const AUTOCONNECTED_CONNECTOR_IDS = ['safe'];
+
+function useAutoConnect() {
+  const { connect, connectors } = useConnect();
+
+  useEffect(() => {
+    AUTOCONNECTED_CONNECTOR_IDS.forEach((connector) => {
+      const connectorInstance = connectors.find((c) => {
+        return c.id === connector && c.ready;
+      });
+
+      if (connectorInstance) {
+        connect({ connector: connectorInstance });
+      }
+    });
+  }, [connect, connectors]);
+}
+
 function HeaderButtons({
   isMobileMenuOpen,
   onMobileMenuOpenChange,
@@ -216,6 +234,8 @@ export function AppWrapper({ children }: PropsWithChildren) {
       };
     });
   }, [connectors, isLoading, pendingConnector?.id]);
+
+  useAutoConnect();
 
   return (
     <Page
