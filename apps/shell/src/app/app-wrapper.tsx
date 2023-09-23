@@ -15,6 +15,8 @@ import {
   BurgerButton,
   SelectChainButton,
   SelectWalletModal,
+  TestedgeBanner,
+  formatNumber,
 } from '@haqq/shell-ui-kit';
 import ScrollLock from 'react-scrolllock';
 import { useMediaQuery } from 'react-responsive';
@@ -24,7 +26,6 @@ import {
   useWallet,
   getFormattedAddress,
   useSupportedChains,
-  formatNumber,
 } from '@haqq/shared';
 import { haqqTestedge2 } from '@wagmi/chains';
 import { useNavigate } from 'react-router-dom';
@@ -101,6 +102,7 @@ function HeaderButtons({
       <nav className="hidden flex-row items-center space-x-6 lg:flex">
         <HeaderNavLink href="/staking">Staking</HeaderNavLink>
         <HeaderNavLink href="/governance">Governance</HeaderNavLink>
+        <HeaderNavLink href="/authz">Authz</HeaderNavLink>
       </nav>
 
       <div className="hidden pl-[80px] lg:block">
@@ -153,6 +155,14 @@ function HeaderButtons({
                   }}
                 >
                   Governance
+                </HeaderNavLink>
+                <HeaderNavLink
+                  href="/authz"
+                  onClick={() => {
+                    onMobileMenuOpenChange(false);
+                  }}
+                >
+                  Authz
                 </HeaderNavLink>
               </div>
 
@@ -264,13 +274,5 @@ export function AppWrapper({ children }: PropsWithChildren) {
         onClose={closeSelectWallet}
       />
     </Page>
-  );
-}
-
-function TestedgeBanner() {
-  return (
-    <div className="bg-haqq-orange/80 relative z-[51] mb-[-1px] transform-gpu select-none p-[8px] text-center font-serif text-[18px] leading-[24px] text-white backdrop-blur">
-      You are on test network
-    </div>
   );
 }

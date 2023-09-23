@@ -1,19 +1,28 @@
 import {
   useAddress,
+  useQueryInvalidate,
   useStakingActions,
   useStakingDelegationQuery,
   useStakingRewardsQuery,
   useStakingUnbondingsQuery,
   useSupportedChains,
+  useToast,
   useWallet,
 } from '@haqq/shared';
 import { RewardsInfo, StakingInfoAmountBlock } from '@haqq/staking/ui-kit';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBalance, useNetwork } from 'wagmi';
 import { useCosmosProvider } from '@haqq/shared';
-import { Button, Container, Heading, WalletIcon } from '@haqq/shell-ui-kit';
+import {
+  Button,
+  Container,
+  Heading,
+  WalletIcon,
+  formatNumber,
+} from '@haqq/shell-ui-kit';
 import { haqqTestedge2 } from '@wagmi/chains';
 import clsx from 'clsx';
+import { formatUnits, parseUnits } from 'viem';
 
 export function StakingInfoHooked() {
   const [staked, setStakedValue] = useState(0);
@@ -22,6 +31,7 @@ export function StakingInfoHooked() {
   );
   const { ethAddress, haqqAddress } = useAddress();
   const { claimAllRewards } = useStakingActions();
+  const invalidateQueries = useQueryInvalidate();
   const { data: delegationInfo } = useStakingDelegationQuery(haqqAddress);
   const { data: rewardsInfo } = useStakingRewardsQuery(haqqAddress);
   const { data: undelegations } = useStakingUnbondingsQuery(haqqAddress);
@@ -29,10 +39,36 @@ export function StakingInfoHooked() {
     address: ethAddress,
     watch: true,
   });
+  const { chain } = useNetwork();
+  const toast = useToast();
 
-  const handleRewardsClaim = useCallback(() => {
-    claimAllRewards(delegatedValsAddrs);
-  }, [claimAllRewards, delegatedValsAddrs]);
+  const handleRewardsClaim = useCallback(async () => {
+    const claimAllRewardPromise = claimAllRewards(delegatedValsAddrs);
+
+    await toast.promise(claimAllRewardPromise, {
+      loading: 'Rewards claim in progress',
+      success: (tx) => {
+        const txHash = tx?.txhash;
+        console.log('Rewards claimed', { txHash });
+        return `Rewards claimed`;
+      },
+      error: (error) => {
+        return error.message;
+      },
+    });
+
+    invalidateQueries([
+      [chain?.id, 'rewards'],
+      [chain?.id, 'delegation'],
+      [chain?.id, 'unboundings'],
+    ]);
+  }, [
+    chain?.id,
+    claimAllRewards,
+    delegatedValsAddrs,
+    invalidateQueries,
+    toast,
+  ]);
 
   const formattedBalance = useMemo(() => {
     if (balance) {
@@ -52,16 +88,16 @@ export function StakingInfoHooked() {
         del = del + Number.parseInt(delegation.balance.amount, 10);
       });
 
-      // TODO: use formatter from utils
-      setStakedValue(del / 10 ** 18);
+      setStakedValue(Number.parseFloat(formatUnits(BigInt(del), 18)));
       setDelegatedValsAddrs(vecDelegatedValsAddrs);
     }
   }, [delegationInfo]);
 
   const rewards = useMemo(() => {
     if (rewardsInfo?.total?.length) {
-      const totalRewards =
-        Number.parseFloat(rewardsInfo.total[0].amount) / 10 ** 18;
+      const totalRewards = Number.parseFloat(
+        formatUnits(parseUnits(rewardsInfo.total[0].amount, 0), 18),
+      );
 
       return totalRewards;
     }
@@ -84,15 +120,15 @@ export function StakingInfoHooked() {
       return accumulator + current;
     }, 0);
 
-    return result / 10 ** 18;
+    return Number.parseFloat(formatUnits(BigInt(result), 18));
   }, [undelegations]);
 
   return (
     <RewardsInfo
-      balance={formattedBalance}
-      delegated={staked}
-      rewards={rewards}
-      unbounded={unbounded}
+      balance={formatNumber(formattedBalance)}
+      delegated={formatNumber(staked)}
+      rewards={formatNumber(rewards)}
+      unbounded={formatNumber(unbounded)}
       symbol={balance?.symbol ?? ''}
       onRewardsClaim={handleRewardsClaim}
     />
@@ -151,7 +187,7 @@ export function StakingInfo() {
       <Container className="flex min-h-[100px] flex-col justify-center gap-[24px]">
         <div className="flex flex-row items-center">
           <WalletIcon />
-          <Heading level={3} className="ml-[8px]">
+          <Heading level={3} className="mb-[-2px] ml-[8px]">
             My account
           </Heading>
         </div>

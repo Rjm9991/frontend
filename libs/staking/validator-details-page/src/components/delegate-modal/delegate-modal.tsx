@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { useStakingActions, useToast } from '@haqq/shared';
+import { toFixedAmount, useStakingActions, useToast } from '@haqq/shared';
 import {
   WarningMessage,
   Modal,
@@ -18,6 +18,7 @@ export interface DelegateModalProps {
   delegation: number;
   onClose: () => void;
   unboundingTime: number;
+  validatorCommission: string;
 }
 
 export function DelegateModalDetails({
@@ -98,6 +99,7 @@ export function DelegateModal({
   delegation,
   balance,
   unboundingTime,
+  validatorCommission,
 }: DelegateModalProps) {
   const { delegate } = useStakingActions();
   const [delegateAmount, setDelegateAmount] = useState<number | undefined>(
@@ -110,32 +112,29 @@ export function DelegateModal({
   const toast = useToast();
 
   const handleMaxButtonClick = useCallback(() => {
-    setDelegateAmount(balance);
+    setDelegateAmount(toFixedAmount(balance));
   }, [balance]);
 
   const handleInputChange = useCallback((value: number | undefined) => {
-    setDelegateAmount(value);
+    setDelegateAmount(toFixedAmount(value));
   }, []);
 
   const handleSubmitDelegate = useCallback(async () => {
     const delegationPromise = delegate(validatorAddress, delegateAmount);
 
-    toast
-      .promise(delegationPromise, {
-        loading: 'Delegate in progress',
-        success: (tx) => {
-          console.log('Delegation successful', { tx }); // maybe successful
-          const txHash = tx?.txhash;
-          console.log('Delegation successful', { txHash });
-          return `Delegation successful`;
-        },
-        error: (error) => {
-          return error.message;
-        },
-      })
-      .then(() => {
-        onClose();
-      });
+    await toast.promise(delegationPromise, {
+      loading: 'Delegate in progress',
+      success: (tx) => {
+        console.log('Delegation successful', { tx }); // maybe successful
+        const txHash = tx?.txhash;
+        console.log('Delegation successful', { txHash });
+        return `Delegation successful`;
+      },
+      error: (error) => {
+        return error.message;
+      },
+    });
+    onClose();
   }, [delegate, validatorAddress, delegateAmount, toast, onClose]);
 
   useEffect(() => {
@@ -172,10 +171,10 @@ export function DelegateModal({
         <div className="flex w-full flex-col space-y-6">
           <div className="divide-y divide-dashed divide-[#0D0D0E3D]">
             <div className="pb-[24px]">
-              <MobileHeading className="mb-[24px] mt-[24px] sm:mt-[4px]">
+              <MobileHeading className="mt-[24px] sm:mt-[4px]">
                 Delegate
               </MobileHeading>
-              <WarningMessage light>
+              <WarningMessage light wrapperClassName="mt-[24px]">
                 {`Attention! If in the future you want to withdraw the staked funds, it will take ${unboundingTime} day `}
               </WarningMessage>
             </div>
@@ -190,7 +189,10 @@ export function DelegateModal({
                   title="My delegation"
                   value={`${delegation.toLocaleString()} ${symbol.toUpperCase()}`}
                 />
-                <DelegateModalDetails title="Comission" value={`10%`} />
+                <DelegateModalDetails
+                  title="Comission"
+                  value={`${validatorCommission}%`}
+                />
               </div>
             </div>
             <div className="pt-[24px]">

@@ -14,7 +14,8 @@ import {
   useStakingUnbondingsQuery,
   useWallet,
   useSupportedChains,
-  formatNumber,
+  useStakingValidatorListQuery,
+  useToast,
 } from '@haqq/shared';
 import { ValidatorDetailsStatus } from '@haqq/staking/ui-kit';
 import { UndelegateModal } from '../undelegate-modal/undelegate-modal';
@@ -36,6 +37,7 @@ import {
   InfoIcon,
   MyAccountBlockMobile,
   Tooltip,
+  formatNumber,
 } from '@haqq/shell-ui-kit';
 import Markdown from 'marked-react';
 import { useMediaQuery } from 'react-responsive';
@@ -47,6 +49,7 @@ import styles from './validator-info.module.css';
 import { Validator } from '@evmos/provider';
 import { formatUnits } from 'viem/utils';
 import { getFormattedAddress } from '@haqq/shared';
+import { RedelegateModal } from '../redelegate-modal/redelegate-modal';
 
 interface ValidatorInfoComponentProps {
   validatorInfo: Validator;
@@ -71,6 +74,9 @@ interface Commission {
 interface CommissionCardProps {
   commission: Commission;
 }
+
+const MIN_BALANCE = 0.01;
+const MIN_DELEGATION = 0.009;
 
 function CommissionCardInnerBlock({
   title,
@@ -103,7 +109,7 @@ function CommissionCard({ commission }: CommissionCardProps) {
     <div>
       <div className="mb-[16px] flex flex-row items-center">
         <PercentIcon />
-        <Heading level={3} className="ml-[8px]">
+        <Heading level={3} className="mb-[-2px] ml-[8px]">
           Commission
         </Heading>
       </div>
@@ -206,7 +212,7 @@ export function ValidatorInfoComponent({
               <div className="py-[40px]">
                 <div className="mb-[16px] flex flex-row items-center">
                   <InfoIcon />
-                  <Heading level={3} className="ml-[8px]">
+                  <Heading level={3} className="mb-[-2px] ml-[8px]">
                     Info
                   </Heading>
                 </div>
@@ -425,23 +431,32 @@ export function ValidatorInfo({
   const navigate = useNavigate();
   const { chain } = useNetwork();
   const chains = useSupportedChains();
+  const { data: validatorsList } = useStakingValidatorListQuery(1000);
   const symbol =
     chain?.nativeCurrency.symbol ?? chains[0]?.nativeCurrency.symbol;
+  const toast = useToast();
 
   const balance = useMemo(() => {
     return balanceData ? Number.parseFloat(balanceData.formatted) : 0;
   }, [balanceData]);
-  const { isDelegateModalOpen, isUndelegateModalOpen } = useMemo(() => {
-    return {
-      isDelegateModalOpen: hash === '#delegate',
-      isUndelegateModalOpen: hash === '#undelegate',
-    };
-  }, [hash]);
+
+  const { isDelegateModalOpen, isUndelegateModalOpen, isRedelegateModalOpen } =
+    useMemo(() => {
+      return {
+        isDelegateModalOpen: hash === '#delegate',
+        isUndelegateModalOpen: hash === '#undelegate',
+        isRedelegateModalOpen: hash === '#redelegate',
+      };
+    }, [hash]);
 
   const handleModalClose = useCallback(() => {
-    navigate('');
-    invalidateQueries([['rewards'], ['delegation'], ['unboundings']]);
-  }, [invalidateQueries, navigate]);
+    navigate('', { replace: true });
+    invalidateQueries([
+      [chain?.id, 'rewards'],
+      [chain?.id, 'delegation'],
+      [chain?.id, 'unboundings'],
+    ]);
+  }, [chain?.id, invalidateQueries, navigate]);
 
   const unboundingTime = useMemo(() => {
     if (stakingParams?.unbonding_time) {
@@ -490,9 +505,27 @@ export function ValidatorInfo({
     return 0;
   }, [rewardsInfo]);
 
-  const handleGetRewardsClick = useCallback(() => {
-    claimReward(validatorAddress);
-  }, [claimReward, validatorAddress]);
+  const handleGetRewardsClick = useCallback(async () => {
+    const claimRewardPromise = claimReward(validatorAddress);
+
+    await toast.promise(claimRewardPromise, {
+      loading: 'Rewards claim in progress',
+      success: (tx) => {
+        const txHash = tx?.txhash;
+        console.log('Rewards claimed', { txHash });
+        return `Rewards claimed`;
+      },
+      error: (error) => {
+        return error.message;
+      },
+    });
+
+    invalidateQueries([
+      [chain?.id, 'rewards'],
+      [chain?.id, 'delegation'],
+      [chain?.id, 'unboundings'],
+    ]);
+  }, [chain?.id, claimReward, invalidateQueries, toast, validatorAddress]);
 
   const unbounded = useMemo(() => {
     const allUnbound: number[] = (undelegations ?? []).map((validator) => {
@@ -509,11 +542,13 @@ export function ValidatorInfo({
       return accumulator + current;
     }, 0);
 
-    return result / 10 ** 18;
+    return Number.parseFloat(formatUnits(BigInt(result), 18));
   }, [undelegations]);
 
   const totalStaked = useMemo(() => {
-    return Number.parseInt(stakingPool?.bonded_tokens ?? '0') / 10 ** 18;
+    return Number.parseFloat(
+      formatUnits(BigInt(stakingPool?.bonded_tokens ?? '0'), 18),
+    );
   }, [stakingPool?.bonded_tokens]);
 
   useEffect(() => {
@@ -526,15 +561,46 @@ export function ValidatorInfo({
         del = del + Number.parseInt(delegation.balance.amount, 10);
       });
 
-      // TODO: use formatter from viem utils
-      setStakedValue(del / 10 ** 18);
+      setStakedValue(Number.parseFloat(formatUnits(BigInt(del), 18)));
       setDelegatedValsAddrs(vecDelegatedValsAddrs);
     }
   }, [delegationInfo]);
 
-  const handleRewardsClaim = useCallback(() => {
-    claimAllRewards(delegatedValsAddrs);
-  }, [claimAllRewards, delegatedValsAddrs]);
+  const handleRewardsClaim = useCallback(async () => {
+    const claimAllRewardPromise = claimAllRewards(delegatedValsAddrs);
+
+    await toast.promise(claimAllRewardPromise, {
+      loading: 'Rewards claim in progress',
+      success: (tx) => {
+        const txHash = tx?.txhash;
+        console.log('Rewards claimed', { txHash });
+        return `Rewards claimed`;
+      },
+      error: (error) => {
+        return error.message;
+      },
+    });
+
+    invalidateQueries([
+      [chain?.id, 'rewards'],
+      [chain?.id, 'delegation'],
+      [chain?.id, 'unboundings'],
+    ]);
+  }, [
+    chain?.id,
+    claimAllRewards,
+    delegatedValsAddrs,
+    invalidateQueries,
+    toast,
+  ]);
+
+  const validatorCommission = useMemo(() => {
+    return (
+      Number.parseFloat(
+        validatorInfo?.commission.commission_rates.rate ?? '0',
+      ) * 100
+    ).toFixed(0);
+  }, [validatorInfo?.commission.commission_rates.rate]);
 
   if (isFetching || !validatorInfo) {
     return (
@@ -571,6 +637,7 @@ export function ValidatorInfo({
         balance={balance}
         symbol={symbol}
         unboundingTime={unboundingTime}
+        validatorCommission={validatorCommission}
       />
 
       <UndelegateModal
@@ -581,6 +648,15 @@ export function ValidatorInfo({
         balance={balance}
         unboundingTime={unboundingTime}
         symbol={symbol}
+      />
+
+      <RedelegateModal
+        validatorAddress={validatorAddress}
+        isOpen={isRedelegateModalOpen}
+        onClose={handleModalClose}
+        delegation={myDelegation}
+        symbol={symbol}
+        validatorsList={validatorsList}
       />
     </Fragment>
   );
@@ -609,7 +685,7 @@ export function ValidatorBlockDesktop({
     <div className="flex transform-gpu flex-col gap-[24px] overflow-hidden rounded-[8px] bg-[#FFFFFF14] px-[28px] py-[32px]">
       <div className="flex flex-row items-center">
         <ValidatorIcon />
-        <Heading level={3} className="ml-[8px]">
+        <Heading level={3} className="mb-[-2px] ml-[8px]">
           Validator
         </Heading>
       </div>
@@ -632,14 +708,14 @@ export function ValidatorBlockDesktop({
             {formatNumber(delegation)} {symbol.toLocaleUpperCase()}
           </span>
         </div>
-        <div className="flex gap-x-[12px]">
+        <div className="flex flex-row gap-x-[12px]">
           <div className="flex-1">
             <Button
               variant={2}
-              disabled={balance < 1}
+              disabled={balance < MIN_BALANCE}
               className="w-full"
               onClick={() => {
-                navigate(`#delegate`);
+                navigate('#delegate', { replace: true });
               }}
             >
               Delegate
@@ -649,14 +725,26 @@ export function ValidatorBlockDesktop({
             <Button
               variant={2}
               className="w-full"
-              disabled={delegation === 0}
+              disabled={delegation < MIN_DELEGATION}
               onClick={() => {
-                navigate(`#undelegate`);
+                navigate('#undelegate', { replace: true });
               }}
             >
               Undelegate
             </Button>
           </div>
+        </div>
+        <div>
+          <Button
+            variant={2}
+            className="w-full"
+            disabled={delegation < MIN_DELEGATION}
+            onClick={() => {
+              navigate('#redelegate', { replace: true });
+            }}
+          >
+            Redelegate
+          </Button>
         </div>
       </div>
       <div className="flex flex-col gap-y-[12px]">
@@ -701,19 +789,23 @@ function ValidatorBlockMobile({
     <ValidatorBlockMobileComponent
       onGetRewardClick={onGetRewardsClick}
       onDelegateClick={() => {
-        navigate(`#delegate`);
+        navigate('#delegate', { replace: true });
       }}
       onUndelegateClick={() => {
-        navigate(`#undelegate`);
+        navigate('#undelegate', { replace: true });
       }}
-      isDelegateDisabled={balance < 1}
-      isUndelegateDisabled={delegation === 0}
+      onRedelegateClick={() => {
+        navigate('#redelegate', { replace: true });
+      }}
+      isDelegateDisabled={balance < MIN_BALANCE}
+      isUndelegateDisabled={delegation < MIN_DELEGATION}
       isGetRewardDisabled={rewards < 1}
       delegation={delegation}
       rewards={rewards}
       isWarningShown={isWarningShown}
       undelegate={undelegate}
       symbol={symbol}
+      isRedelegateDisabled={delegation < MIN_DELEGATION}
     />
   );
 }

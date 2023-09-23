@@ -25,7 +25,9 @@ import {
   useConfig,
   GetGovernanceParamsResponse,
   useSupportedChains,
-  formatNumber,
+  useStakingDelegationQuery,
+  useProposalTally,
+  TallyResults,
 } from '@haqq/shared';
 import { VoteOption } from 'cosmjs-types/cosmos/gov/v1beta1/gov';
 import { ParameterChangeProposalDetails } from '../parameter-change-proposal/parameter-change-proposal';
@@ -45,6 +47,7 @@ import {
   ProposalStatus as ProposalStatusComponent,
   ProposalPeriodTimer,
   ProposalVoteProgress,
+  formatNumber,
 } from '@haqq/shell-ui-kit';
 import { useMediaQuery } from 'react-responsive';
 import { useAccount, useNetwork } from 'wagmi';
@@ -138,11 +141,13 @@ function ProposalDetailsMobile({
   totalDeposit,
   minDeposit,
   symbol,
+  proposalTally,
 }: {
   proposalDetails: Proposal;
   totalDeposit: number;
   minDeposit: number;
   symbol: string;
+  proposalTally: TallyResults;
 }) {
   return (
     <div className="mt-[24px] flex flex-col gap-[24px] md:mt-[28px] md:gap-[28px]">
@@ -154,7 +159,7 @@ function ProposalDetailsMobile({
               proposalDetails.status === ProposalStatus.Rejected) && (
               <div>
                 <ProposalVoteProgress
-                  results={proposalDetails.final_tally_result}
+                  results={proposalTally}
                   status={proposalDetails.status}
                 />
               </div>
@@ -204,13 +209,17 @@ export function ProposalDetailsComponent({
   symbol,
   isWalletConnected,
   govParams,
+  proposalTally,
 }: {
   proposalDetails: Proposal;
   symbol: string;
   isWalletConnected: boolean;
   govParams: GetGovernanceParamsResponse;
+  proposalTally: TallyResults;
 }) {
   const { isConnected } = useAccount();
+  const { haqqAddress } = useAddress();
+  const { data: delegationInfo } = useStakingDelegationQuery(haqqAddress);
   const { openSelectWallet } = useWallet();
   // const { deposit } = useProposalActions();
   // const toast = useToast();
@@ -257,6 +266,28 @@ export function ProposalDetailsComponent({
   const isTablet = useMediaQuery({
     query: `(max-width: 1023px)`,
   });
+
+  const delegation = useMemo(() => {
+    if (delegationInfo && delegationInfo.delegation_responses?.length > 0) {
+      let del = 0;
+
+      for (const delegation of delegationInfo.delegation_responses) {
+        del = del + Number.parseInt(delegation.balance.amount, 10);
+      }
+
+      return del / 10 ** 18;
+    }
+
+    return 0;
+  }, [delegationInfo]);
+
+  const isCanVote = useMemo(() => {
+    return (
+      Number.parseFloat(formatNumber(delegation)) > 0 &&
+      proposalDetails.status === ProposalStatus.Voting
+    );
+  }, [delegation, proposalDetails.status]);
+
   // const balance = useMemo(() => {
   //   return balanceData ? Number.parseFloat(balanceData.formatted) : 0;
   // }, [balanceData]);
@@ -318,6 +349,7 @@ export function ProposalDetailsComponent({
                       totalDeposit={totalDeposit}
                       minDeposit={minDeposit}
                       symbol={symbol}
+                      proposalTally={proposalTally}
                     />
                   </div>
                 )}
@@ -325,7 +357,7 @@ export function ProposalDetailsComponent({
               <div className="py-[24px] md:py-[40px]">
                 <div className="mb-[16px] flex flex-row items-center">
                   <InfoIcon />
-                  <Heading level={3} className="ml-[8px]">
+                  <Heading level={3} className="mb-[-2px] ml-[8px]">
                     Info
                   </Heading>
                 </div>
@@ -439,7 +471,7 @@ export function ProposalDetailsComponent({
                     <div className="flex flex-col gap-[24px]">
                       <div>
                         <ProposalVoteProgress
-                          results={proposalDetails.final_tally_result}
+                          results={proposalTally}
                           status={proposalDetails.status}
                         />
                       </div>
@@ -570,7 +602,8 @@ export function ProposalDetailsComponent({
                     isConnected={isConnected}
                   />
                 )} */}
-                {proposalDetails.status === ProposalStatus.Voting && (
+
+                {isCanVote && (
                   <div className="bg-white bg-opacity-[15%] px-[28px] py-[32px]">
                     <VoteActions
                       proposalId={Number.parseInt(
@@ -594,8 +627,9 @@ export function ProposalDetailsComponent({
             onConnectWalletClick={openSelectWallet}
             isDepositAvailable={isDepositAvailable}
             onDepositWalletClick={() => {
-              navigate(`#deposit`);
+              navigate('#deposit', { replace: true });
             }}
+            isCanVote={isCanVote}
           />
           {/* <ProposalDepositModal
             isOpen={isDepositModalOpen}
@@ -617,12 +651,14 @@ function ProposalActionsMobile({
   onConnectWalletClick,
   onDepositWalletClick,
   isDepositAvailable,
+  isCanVote,
 }: {
   proposalDetails: Proposal;
   isConnected?: boolean;
   onConnectWalletClick: () => void;
   onDepositWalletClick: () => void;
   isDepositAvailable: boolean;
+  isCanVote?: boolean;
 }) {
   if (!isConnected) {
     return (
@@ -660,7 +696,7 @@ function ProposalActionsMobile({
   //   );
   // }
 
-  if (proposalDetails.status === ProposalStatus.Voting) {
+  if (isCanVote) {
     return (
       <div className="transform-gpu bg-[#FFFFFF14] py-[24px] backdrop-blur md:py-[40px]">
         <Container>
@@ -678,6 +714,7 @@ function ProposalActionsMobile({
 function ProposalInfo({ proposalId }: { proposalId: string }) {
   const { data: proposalDetails, isFetching } =
     useProposalDetailsQuery(proposalId);
+  const { data: proposalTally } = useProposalTally(proposalId);
   const { data: govParams } = useGovernanceParamsQuery();
   const { ethAddress, haqqAddress } = useAddress();
   const { chain } = useNetwork();
@@ -687,7 +724,7 @@ function ProposalInfo({ proposalId }: { proposalId: string }) {
     return <Navigate to="/not-found" replace />;
   }
 
-  return isFetching || !proposalDetails || !govParams ? (
+  return isFetching || !proposalDetails || !proposalTally || !govParams ? (
     <div className="pointer-events-none flex min-h-[320px] flex-1 select-none flex-col items-center justify-center space-y-8">
       <SpinnerLoader />
       <div className="font-sans text-[10px] uppercase leading-[1.2em]">
@@ -699,6 +736,7 @@ function ProposalInfo({ proposalId }: { proposalId: string }) {
       symbol={chain?.nativeCurrency.symbol ?? chains[0].nativeCurrency.symbol}
       isWalletConnected={Boolean(ethAddress && haqqAddress)}
       proposalDetails={proposalDetails}
+      proposalTally={proposalTally}
       govParams={govParams}
     />
   );

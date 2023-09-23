@@ -1,6 +1,6 @@
 import { DelegateModalDetails } from '../delegate-modal/delegate-modal';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useStakingActions, useToast } from '@haqq/shared';
+import { useStakingActions, useToast, toFixedAmount } from '@haqq/shared';
 import {
   WarningMessage,
   Modal,
@@ -40,11 +40,11 @@ export function UndelegateModal({
   const toast = useToast();
 
   const handleMaxButtonClick = useCallback(() => {
-    setUndelegateAmount(delegation);
+    setUndelegateAmount(toFixedAmount(delegation));
   }, [delegation]);
 
   const handleInputChange = useCallback((value: number | undefined) => {
-    setUndelegateAmount(value);
+    setUndelegateAmount(toFixedAmount(value));
   }, []);
 
   const handleSubmitUndelegate = useCallback(async () => {
@@ -102,11 +102,15 @@ export function UndelegateModal({
         <div className="flex w-full flex-col space-y-6">
           <div className="divide-y divide-dashed divide-[#0D0D0E3D]">
             <div className="pb-[24px]">
-              <MobileHeading className="mb-[24px] mt-[24px] sm:mt-[4px]">
+              <MobileHeading className="mt-[24px] sm:mt-[4px]">
                 Undelegate
               </MobileHeading>
 
-              <WarningMessage light className="mt-[3px]">
+              <WarningMessage
+                light
+                className="mt-[3px]"
+                wrapperClassName="mt-[24px]"
+              >
                 {`The funds will be undelegate within ${unboundingTime} day`}
               </WarningMessage>
             </div>

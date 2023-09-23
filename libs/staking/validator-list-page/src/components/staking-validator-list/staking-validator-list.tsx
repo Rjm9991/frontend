@@ -1,13 +1,25 @@
-import { PropsWithChildren, ReactNode, useMemo, useState } from 'react';
+import {
+  Fragment,
+  PropsWithChildren,
+  ReactNode,
+  useMemo,
+  useState,
+} from 'react';
 import {
   useAddress,
   useStakingValidatorListQuery,
   useStakingRewardsQuery,
   useStakingDelegationQuery,
   useCosmosProvider,
+  useStakingPoolQuery,
+  toFixedAmount,
 } from '@haqq/shared';
 import { ValidatorsList, ValidatorsListMobile } from '@haqq/staking/ui-kit';
-import { sortValidatorsByToken, splitValidators } from '@haqq/staking/utils';
+import {
+  randomSort,
+  sortValidatorsByToken,
+  splitValidators,
+} from '@haqq/staking/utils';
 import {
   Validator,
   DelegationResponse,
@@ -21,10 +33,12 @@ import {
   ValidatorIcon,
   Heading,
   Container,
+  Checkbox,
 } from '@haqq/shell-ui-kit';
 import { useMediaQuery } from 'react-responsive';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
+import { formatEther } from 'viem';
 
 function getDelegatedValidatorsAddresses(
   delegations: DelegationResponse[] | null | undefined,
@@ -35,7 +49,10 @@ function getDelegatedValidatorsAddresses(
 
   return delegations
     .map((del) => {
-      if (Number.parseInt(del.balance.amount, 10) > 0) {
+      const amount = toFixedAmount(
+        Number.parseFloat(formatEther(BigInt(del.balance.amount))),
+      );
+      if (amount && amount > 0) {
         return del.delegation.validator_address;
       }
 
@@ -44,7 +61,11 @@ function getDelegatedValidatorsAddresses(
     .filter(Boolean);
 }
 
-export function StakingValidatorList() {
+export function StakingValidatorList({
+  isInactiveValidatorsVisible,
+}: {
+  isInactiveValidatorsVisible: boolean;
+}) {
   const { haqqAddress } = useAddress();
   const {
     data: validatorsList,
@@ -53,6 +74,7 @@ export function StakingValidatorList() {
   } = useStakingValidatorListQuery(1000);
   const { data: rewardsInfo } = useStakingRewardsQuery(haqqAddress);
   const { data: delegationInfo } = useStakingDelegationQuery(haqqAddress);
+  const { data: stakingPool } = useStakingPoolQuery();
   const isMobile = useMediaQuery({
     query: `(max-width: 639px)`,
   });
@@ -94,15 +116,25 @@ export function StakingValidatorList() {
       if (hasDelegation) {
         delegated.push(validator);
       } else {
-        others.push(validator);
+        if (isInactiveValidatorsVisible) {
+          others.push(validator);
+        } else {
+          if (validator.status === 'BOND_STATUS_BONDED') {
+            others.push(validator);
+          }
+        }
       }
     }
 
     return [delegated, others];
-  }, [sortedValidators, valWithDelegationAddr]);
+  }, [isInactiveValidatorsVisible, sortedValidators, valWithDelegationAddr]);
+
+  const totalStaked = useMemo(() => {
+    return Number.parseInt(stakingPool?.bonded_tokens ?? '0') / 10 ** 18;
+  }, [stakingPool?.bonded_tokens]);
 
   return (
-    <div>
+    <Fragment>
       {status === 'loading' && (
         <div className="pointer-events-none mx-auto flex min-h-[320px] w-full flex-1 select-none">
           <div className="flex min-h-full flex-1 flex-col items-center justify-center space-y-8">
@@ -114,54 +146,58 @@ export function StakingValidatorList() {
         </div>
       )}
       {status === 'error' && <p>Error: {error.message}</p>}
-      {status === 'success' && (
-        <div>
-          {isMobile ? (
-            <ValidatorsListMobileTabs
-              delegatedValidators={delegatedValidators}
-              otherValidators={otherValidators}
-              delegationInfo={delegationInfo}
-              rewardsInfo={rewardsInfo}
-            />
-          ) : (
-            <div className="flex flex-col gap-[24px]">
-              {delegatedValidators.length !== 0 && (
-                <div>
-                  <div className="border-haqq-border border-b border-dashed pb-[8px] font-serif text-[20px] leading-[26px] text-white/50">
+      {status === 'success' &&
+        (isMobile ? (
+          <ValidatorsListMobileTabs
+            delegatedValidators={delegatedValidators}
+            otherValidators={otherValidators}
+            delegationInfo={delegationInfo}
+            rewardsInfo={rewardsInfo}
+            totalStaked={totalStaked}
+          />
+        ) : (
+          <Fragment>
+            {delegatedValidators.length !== 0 && (
+              <div>
+                <div className="border-haqq-border border-b border-dashed pb-[8px]">
+                  <h4 className=" font-serif text-[20px] leading-[26px] text-white/50">
                     My delegations
-                  </div>
-                  <ValidatorsList
-                    validators={delegatedValidators}
-                    delegationInfo={delegationInfo}
-                    rewardsInfo={rewardsInfo}
-                    onValidatorClick={(validatorAddress: string) => {
-                      navigate(`validator/${validatorAddress}`);
-                    }}
-                  />
+                  </h4>
                 </div>
-              )}
-              {otherValidators.length !== 0 && (
-                <div>
-                  {delegatedValidators.length !== 0 && (
-                    <div className="border-haqq-border border-b border-dashed pb-[8px] font-serif text-[20px] leading-[26px] text-white/50">
+                <ValidatorsList
+                  validators={delegatedValidators}
+                  delegationInfo={delegationInfo}
+                  rewardsInfo={rewardsInfo}
+                  onValidatorClick={(validatorAddress: string) => {
+                    navigate(`validator/${validatorAddress}`);
+                  }}
+                  totalStaked={totalStaked}
+                />
+              </div>
+            )}
+            {otherValidators.length !== 0 && (
+              <div>
+                {delegatedValidators.length !== 0 && (
+                  <div className="border-haqq-border border-b border-dashed pb-[8px]">
+                    <h4 className="font-serif text-[20px] leading-[26px] text-white/50">
                       Other validators
-                    </div>
-                  )}
-                  <ValidatorsList
-                    validators={otherValidators}
-                    delegationInfo={delegationInfo}
-                    rewardsInfo={rewardsInfo}
-                    onValidatorClick={(validatorAddress: string) => {
-                      navigate(`validator/${validatorAddress}`);
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+                    </h4>
+                  </div>
+                )}
+                <ValidatorsList
+                  validators={otherValidators}
+                  delegationInfo={delegationInfo}
+                  rewardsInfo={rewardsInfo}
+                  onValidatorClick={(validatorAddress: string) => {
+                    navigate(`validator/${validatorAddress}`);
+                  }}
+                  totalStaked={totalStaked}
+                />
+              </div>
+            )}
+          </Fragment>
+        ))}
+    </Fragment>
   );
 }
 
@@ -170,25 +206,34 @@ function ValidatorsListMobileTabs({
   otherValidators,
   rewardsInfo,
   delegationInfo,
+  totalStaked,
 }: {
   delegatedValidators: Validator[];
   otherValidators: Validator[];
   rewardsInfo: DistributionRewardsResponse | null | undefined;
   delegationInfo: GetDelegationsResponse | null | undefined;
+  totalStaked: number;
 }) {
-  const [tab, setTab] = useState('my-delegations');
+  const [tab, setTab] = useState<'my-delegations' | 'other-validators'>(
+    'my-delegations',
+  );
   const navigate = useNavigate();
+
+  const shuffledValidators = useMemo(() => {
+    return randomSort(otherValidators);
+  }, [otherValidators]);
 
   if (delegatedValidators.length === 0) {
     return (
       <div className="border-top border-haqq-border flex flex-col gap-[24px]">
         <ValidatorsListMobile
-          validators={otherValidators}
+          validators={shuffledValidators}
           delegationInfo={delegationInfo}
           rewardsInfo={rewardsInfo}
           onValidatorClick={(validatorAddress: string) => {
             navigate(`validator/${validatorAddress}`);
           }}
+          totalStaked={totalStaked}
         />
       </div>
     );
@@ -217,13 +262,14 @@ function ValidatorsListMobileTabs({
       <div className="border-top border-haqq-border flex flex-col gap-[24px]">
         <ValidatorsListMobile
           validators={
-            tab === 'my-delegations' ? delegatedValidators : otherValidators
+            tab === 'my-delegations' ? delegatedValidators : shuffledValidators
           }
           delegationInfo={delegationInfo}
           rewardsInfo={rewardsInfo}
           onValidatorClick={(validatorAddress: string) => {
             navigate(`validator/${validatorAddress}`);
           }}
+          totalStaked={totalStaked}
         />
       </div>
     </div>
@@ -232,17 +278,33 @@ function ValidatorsListMobileTabs({
 
 export function ValidatorList() {
   const { isReady } = useCosmosProvider();
+  const [isInactiveValidatorsVisible, setInactiveValidatorsVisible] =
+    useState(false);
 
   return (
     <Container className="py-[52px] sm:py-[60px] lg:py-[80px]">
       <div className="flex flex-col gap-[32px]">
-        <div className="flex flex-row items-center">
-          <ValidatorIcon />
-          <Heading level={3} className="ml-[8px]">
-            Validators
-          </Heading>
+        <div className="flex flex-row items-center gap-[24px]">
+          <div className="flex flex-row items-center">
+            <ValidatorIcon />
+            <Heading level={3} className="mb-[-2px] ml-[8px]">
+              Validators
+            </Heading>
+          </div>
+
+          <div className="leading-[0]">
+            <Checkbox onChange={setInactiveValidatorsVisible}>
+              Show Inactive
+            </Checkbox>
+          </div>
         </div>
-        {isReady ? <StakingValidatorList /> : <ValidatorListSkeleton />}
+        {isReady ? (
+          <StakingValidatorList
+            isInactiveValidatorsVisible={isInactiveValidatorsVisible}
+          />
+        ) : (
+          <ValidatorListSkeleton />
+        )}
       </div>
     </Container>
   );
@@ -254,7 +316,6 @@ function ColumnLine({
 }: PropsWithChildren<{ columnName: ReactNode }>) {
   return (
     <div className="flex items-center justify-between px-[8px] text-[13px] leading-[36px]">
-      {/* <span className="text-white/50"></span> */}
       <div className="flex-1">{columnName}</div>
       <div className="flex-1">{children}</div>
     </div>

@@ -2,8 +2,11 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ProposalListCard } from '@haqq/governance/proposal-list';
 import {
+  GetGovernanceParamsResponse,
+  Proposal,
   useGovernanceParamsQuery,
   useProposalListQuery,
+  useProposalTally,
   useSupportedChains,
 } from '@haqq/shared';
 import {
@@ -34,7 +37,7 @@ export function ProposalListBlock() {
     <Container>
       <div className="mb-[24px] flex flex-row items-center">
         <ProposalsIcon />
-        <Heading level={3} className="ml-[8px]">
+        <Heading level={3} className="mb-[-2px] ml-[8px]">
           Latest proposals
         </Heading>
         <Link to="/governance" className="leading-[0]">
@@ -55,20 +58,43 @@ export function ProposalListBlock() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
           {proposals.map((proposal) => {
             return (
-              <Link
-                to={`governance/proposal/${proposal.proposal_id}`}
+              <HookedProposalListCard
                 key={proposal.proposal_id}
-              >
-                <ProposalListCard
-                  proposal={proposal}
-                  govParams={govParams}
-                  symbol={symbol}
-                />
-              </Link>
+                proposal={proposal}
+                govParams={govParams}
+                symbol={symbol}
+              />
             );
           })}
         </div>
       )}
     </Container>
+  );
+}
+
+function HookedProposalListCard({
+  proposal,
+  govParams,
+  symbol,
+}: {
+  proposal: Proposal;
+  govParams: GetGovernanceParamsResponse;
+  symbol: string;
+}) {
+  const { data: proposalTally } = useProposalTally(proposal.proposal_id);
+
+  if (!proposalTally) {
+    return null;
+  }
+
+  return (
+    <Link to={`proposal/${proposal.proposal_id}`}>
+      <ProposalListCard
+        proposal={proposal}
+        govParams={govParams}
+        symbol={symbol}
+        proposalTally={proposalTally}
+      />
+    </Link>
   );
 }

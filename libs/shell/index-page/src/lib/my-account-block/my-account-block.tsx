@@ -6,7 +6,6 @@ import {
   getFormattedAddress,
   useWallet,
   useSupportedChains,
-  formatNumber,
 } from '@haqq/shared';
 import { ReactNode, useCallback, useMemo, useState } from 'react';
 import { useBalance, useNetwork } from 'wagmi';
@@ -17,6 +16,7 @@ import {
   Tooltip,
   Button,
   Heading,
+  formatNumber,
 } from '@haqq/shell-ui-kit';
 import clsx from 'clsx';
 import { useMediaQuery } from 'react-responsive';
@@ -159,7 +159,7 @@ export function MyAccountBlock() {
               fill="currentColor"
             />
           </svg>
-          <Heading level={3} className="ml-[8px]">
+          <Heading level={3} className="mb-[-2px] ml-[8px]">
             My account
           </Heading>
           <Link to="/staking" className="leading-[0]">

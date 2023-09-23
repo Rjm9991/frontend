@@ -8,7 +8,7 @@ import {
   generateEndpointGetUndelegations,
   generateEndpointDistributionRewardsByAddress,
   generateEndpointProposals,
-  Proposal,
+  type Proposal,
   Validator,
   GetDelegationsResponse,
   DistributionRewardsResponse,
@@ -17,6 +17,8 @@ import {
   AccountResponse,
   UndelegationResponse,
   GetUndelegationsResponse,
+  generateEndpointProposalTally,
+  TallyResponse,
 } from '@evmos/provider';
 import store from 'store2';
 import { Coin } from '@evmos/transactions';
@@ -28,6 +30,10 @@ import { getChainParams } from '../chains/get-chain-params';
 import { useSupportedChains } from './wagmi-provider';
 import { Hex } from 'viem';
 import { ethToHaqq } from '../utils/convert-address';
+
+export type TallyResults = TallyResponse['tally'];
+
+export { Proposal };
 
 export interface CosmosService {
   getValidators: (limit?: number) => Promise<Validator[]>;
@@ -52,6 +58,17 @@ export interface CosmosService {
   getPubkey: (address: string) => Promise<string>;
   simulateTransaction: (tx: TxToSend) => Promise<SimulateTxResponse>;
   broadcastTransaction: (tx: TxToSend) => Promise<BroadcastTxResponse>;
+  getAuthzGrants: (
+    granter: string,
+    grantee: string,
+  ) => Promise<AuthzGrantsResponse>;
+  getAuthzGranterGrants: (
+    granter: string,
+  ) => Promise<AuthzGranterGrantsResponse>;
+  getAuthzGranteeGrants: (
+    grantee: string,
+  ) => Promise<AuthzGranterGrantsResponse>;
+  getProposalTally: (id: string) => Promise<TallyResults>;
 }
 
 type CosmosServiceContextProviderValue =
@@ -124,6 +141,18 @@ function generateSimulateEndpoint() {
 
 function generateEndpointGovParams(type: GovParamsType) {
   return `/cosmos/gov/v1beta1/params/${type}`;
+}
+
+function generateEndpointAuthzGrants() {
+  return '/cosmos/authz/v1beta1/grants';
+}
+
+function generateEndpointAuthzGranterGrants(granter: string) {
+  return `/cosmos/authz/v1beta1/grants/granter/${granter}`;
+}
+
+function generateEndpointAuthzGranteeGrants(grantee: string) {
+  return `/cosmos/authz/v1beta1/grants/grantee/${grantee}`;
 }
 
 export interface StakingParams {
@@ -245,6 +274,31 @@ export interface GetGovernanceParamsResponse {
     threshold: string;
     veto_threshold: string;
   };
+}
+
+export interface Grant {
+  granter: string;
+  grantee: string;
+  authorization: {
+    '@type': string;
+    msg: string;
+  };
+  expiration: string;
+}
+
+export interface AuthzGrantsResponse {
+  grants: Omit<Grant, 'granter' | 'grantee'>;
+  pagination: Pagination;
+}
+
+export interface AuthzGranterGrantsResponse {
+  grants: Array<Grant>;
+  pagination: Pagination;
+}
+
+export interface AuthzGranteeGrantsResponse {
+  grants: Array<Grant>;
+  pagination: Pagination;
 }
 
 export type GovParamsType = 'voting' | 'tallying' | 'deposit';
@@ -414,7 +468,7 @@ function createCosmosService(
       if (signature) {
         const uncompressedPk = recoverPublicKey(
           hashMessage(message),
-          signature as any,
+          signature,
         );
         const hexPk = computePublicKey(uncompressedPk, true);
         const pk = Buffer.from(hexPk.replace('0x', ''), 'hex').toString(
@@ -462,13 +516,16 @@ function createCosmosService(
     return savedPubKey;
   }
 
-  async function broadcastTransaction(txToBroadcast: TxToSend) {
+  async function broadcastTransaction(
+    txToBroadcast: TxToSend,
+    mode: BroadcastMode = BroadcastMode.Block,
+  ) {
     try {
       const broadcastResponse = await axios.post<{
         tx_response: BroadcastTxResponse;
       }>(
         `${cosmosRestEndpoint}${generateEndpointBroadcast()}`,
-        generatePostBodyBroadcast(txToBroadcast),
+        generatePostBodyBroadcast(txToBroadcast, mode),
       );
 
       return broadcastResponse.data.tx_response;
@@ -480,7 +537,7 @@ function createCosmosService(
 
   async function simulateTransaction(
     txToBroadcast: TxToSend,
-    mode: BroadcastMode = BroadcastMode.Sync,
+    mode: BroadcastMode = BroadcastMode.Block,
   ) {
     try {
       const simulateUrl = `${cosmosRestEndpoint}${generateSimulateEndpoint()}`;
@@ -493,6 +550,57 @@ function createCosmosService(
       console.error((error as Error).message);
       throw error;
     }
+  }
+
+  async function getAuthzGrants(granter: string, grantee: string) {
+    const getAuthzGrantsUrl = new URL(
+      `${cosmosRestEndpoint}${generateEndpointAuthzGrants()}`,
+    );
+
+    getAuthzGrantsUrl.searchParams.append('granter', granter);
+    getAuthzGrantsUrl.searchParams.append('grantee', grantee);
+
+    const response = await axios.get<AuthzGrantsResponse>(
+      getAuthzGrantsUrl.toString(),
+    );
+    console.log('getAuthzGrants', { response });
+
+    return response.data;
+  }
+
+  async function getAuthzGranterGrants(granter: string) {
+    const getAuthzGranterGrantsUrl = new URL(
+      `${cosmosRestEndpoint}${generateEndpointAuthzGranterGrants(granter)}`,
+    );
+
+    const response = await axios.get<AuthzGranterGrantsResponse>(
+      getAuthzGranterGrantsUrl.toString(),
+    );
+    console.log('getAuthzGranterGrants', { response });
+
+    return response.data;
+  }
+
+  async function getAuthzGranteeGrants(grantee: string) {
+    const getAuthzGranteeGrantsUrl = new URL(
+      `${cosmosRestEndpoint}${generateEndpointAuthzGranteeGrants(grantee)}`,
+    );
+
+    const response = await axios.get<AuthzGranteeGrantsResponse>(
+      getAuthzGranteeGrantsUrl.toString(),
+    );
+    console.log('useAuthzGranteeGrants', { grantee });
+
+    return response.data;
+  }
+
+  async function getProposalTally(id: string) {
+    const response = await axios.get<TallyResponse>(
+      `${cosmosRestEndpoint}${generateEndpointProposalTally(id)}`,
+    );
+    console.log('getProposalTally', { response });
+
+    return response.data.tally;
   }
 
   return {
@@ -514,6 +622,10 @@ function createCosmosService(
     getPubkey,
     broadcastTransaction,
     simulateTransaction,
+    getAuthzGrants,
+    getAuthzGranterGrants,
+    getAuthzGranteeGrants,
+    getProposalTally,
   };
 }
 
@@ -540,9 +652,13 @@ export function CosmosServiceContainer({
         service: createCosmosService(cosmosRestEndpoint, walletClient),
         error: undefined,
       };
-    } catch (error: any) {
-      console.error(error.message);
-      return { isReady: false, service: undefined, error: error.message };
+    } catch (error) {
+      console.error((error as Error).message);
+      return {
+        isReady: false,
+        service: undefined,
+        error: (error as Error).message,
+      };
     }
   }, [chainId, walletClient]);
 
@@ -557,7 +673,7 @@ export function CosmosProvider({ children }: PropsWithChildren) {
   const chains = useSupportedChains();
   const { chain } = useNetwork();
 
-  console.log('CosmosProvider', { chain, chains });
+  // console.log('CosmosProvider', { chain, chains });
 
   const chainId =
     chain && chain.unsupported !== undefined && !chain.unsupported
