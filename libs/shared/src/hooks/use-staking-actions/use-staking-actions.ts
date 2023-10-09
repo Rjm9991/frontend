@@ -126,8 +126,8 @@ export function useStakingActions() {
   const handleDelegate = useCallback(
     async (validatorAddress?: string, amount?: number) => {
       console.log('handleDelegate', { validatorAddress, amount });
-      const pubkey = await getPubkey(ethAddress as string);
-      const sender = await getSender(haqqAddress as string, pubkey);
+      // const pubkey = await getPubkey(ethAddress as string);
+      const sender = await getSender(haqqAddress as string, 'pubkey');
       const memo = 'Delegate';
 
       if (sender && validatorAddress && haqqChain) {
@@ -143,31 +143,25 @@ export function useStakingActions() {
           memo,
           params,
         );
+        console.log({ eipToSign: msg.eipToSign });
+        return msg.eipToSign;
 
-        const rawTx = await signTransaction(msg, sender);
-        const txResponse = await broadcastTransaction(rawTx);
+        // // const rawTx = await signTransaction(msg, sender);
+        // const txResponse = await broadcastTransaction(rawTx);
 
-        return txResponse;
+        // return txResponse;
       } else {
         throw new Error('No sender or Validator address');
       }
     },
-    [
-      getPubkey,
-      ethAddress,
-      getSender,
-      haqqAddress,
-      haqqChain,
-      getDelegationParams,
-      signTransaction,
-      broadcastTransaction,
-    ],
+    [getSender, haqqAddress, haqqChain, getDelegationParams],
   );
 
   const handleUndelegate = useCallback(
     async (validatorAddress?: string, amount?: number) => {
-      console.log('handleUndelegate', { validatorAddress, amount });
+      console.log('handleUndelegate', { validatorAddress, amount, ethAddress });
       const pubkey = await getPubkey(ethAddress as string);
+      console.log({ pubkey });
       const sender = await getSender(haqqAddress as string, pubkey);
       const memo = 'Undelegate';
 

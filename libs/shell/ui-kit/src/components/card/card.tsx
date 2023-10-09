@@ -24,7 +24,7 @@ export function CardHeading({
   return (
     <div
       className={clsx(
-        'font-sans text-[14px] font-[500] leading-[22px] text-white md:text-[17px] md:leading-[26px] lg:text-[18px] lg:leading-[28px]',
+        'font-guise text-[14px] font-[500] leading-[22px] text-white md:text-[17px] md:leading-[26px] lg:text-[18px] lg:leading-[28px]',
         className,
       )}
     >
@@ -39,7 +39,7 @@ export function CardText({
 }: PropsWithChildren<{
   className?: string;
 }>) {
-  return <div className={clsx('font-sans', className)}>{children}</div>;
+  return <div className={clsx('font-guise', className)}>{children}</div>;
 }
 
 export function CardSubText({
@@ -69,7 +69,7 @@ export function TimerText({
   return (
     <div
       className={clsx(
-        'font-serif text-[14px] leading-[18px] lg:text-[20px] lg:leading-[26px]',
+        'font-clash text-[14px] leading-[18px] lg:text-[20px] lg:leading-[26px]',
         color === 'grey' && 'text-[#8E8E8E]',
         color === 'white' && 'text-white',
       )}

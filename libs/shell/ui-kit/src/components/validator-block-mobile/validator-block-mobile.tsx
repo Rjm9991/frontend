@@ -31,7 +31,7 @@ function GrayDescription({
   return (
     <div
       className={clsx(
-        'font-sans text-[12px] font-[600] uppercase leading-[1.2em] text-white/50',
+        'font-guise text-[12px] font-[600] uppercase leading-[1.2em] text-white/50',
         className,
       )}
     >
@@ -48,7 +48,7 @@ function DescriptionAmount({
   return (
     <div
       className={clsx(
-        'font-serif text-[16px] font-[500] uppercase leading-[20px] text-white',
+        'font-clash text-[16px] font-[500] uppercase leading-[20px] text-white',
         className,
       )}
     >

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en" class="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gnosis | Shell | HAQQ</title>
+    <base href="/" />
+
+    <meta
+      name="viewport"
+      content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no, width=device-width"
+    />
+    <link rel="shortcut icon" href="assets/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <style>
+      body,
+      html {
+        background-color: #0d0d0e;
+      }
+
+      .app-loader {
+        --app-loader-size: 90px;
+
+        width: 100%;
+        height: 100vh;
+        justify-content: center;
+        align-items: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 5000;
+        transition:
+          opacity 300ms 250ms ease-out,
+          transform 750ms ease;
+        transform: scale(1.7);
+        display: flex;
+        user-select: none;
+        pointer-events: none;
+        /* visibility: hidden; */
+        opacity: 0;
+        background-color: #0d0d0e;
+      }
+
+      .app-loader img {
+        width: var(--app-loader-size);
+        height: var(--app-loader-size);
+      }
+
+      #root:empty + .app-loader {
+        /* visibility: visible; */
+        background-color: #0d0d0e;
+        transform: scale(1);
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body class="pl-[8px] will-change-scroll">
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+
+    <div id="root"></div>
+
+    <div class="app-loader">
+      <img src="assets/logo.svg" alt="HAQQ Network" />
+    </div>
+  </body>
+</html>
