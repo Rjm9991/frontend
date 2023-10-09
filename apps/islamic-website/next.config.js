@@ -33,6 +33,19 @@ const nextConfig = {
       },
     ],
   },
+  headers: async () => {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 's-maxage=1, stale-while-revalidate=59',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 const plugins = [
