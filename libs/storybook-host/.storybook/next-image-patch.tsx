@@ -1,11 +1,22 @@
-import * as NextImage from 'next/image';
-import type { ImageProps } from 'next/image';
+import NextImage, { ImageProps } from 'next/image';
+import { forwardRef } from 'react';
 
-const OriginalNextImage = NextImage.default;
+/** Wrap next/image to allow for unoptimizing all images inside Storybook */
+export let Image = NextImage;
 
-Object.defineProperty(NextImage, 'default', {
-  configurable: true,
-  value: (props: ImageProps) => {
-    return <OriginalNextImage {...props} unoptimized />;
+const UnoptimizedImage = forwardRef<HTMLImageElement, ImageProps>(
+  function Image(props, ref) {
+    return <NextImage ref={ref} {...props} unoptimized />;
   },
-});
+) as typeof NextImage;
+
+/**
+ * For usage from .storybook/preview.ts so that images can be unoptimized
+ * inside Storybook.
+ *
+ *     import { unoptimizeNextImageForStorybook } from '@/atoms/Image/Image'
+ *     unoptimizeNextImageForStorybook()
+ */
+export function unoptimizeNextImageForStorybook() {
+  Image = UnoptimizedImage;
+}
